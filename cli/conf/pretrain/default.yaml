@@ -15,6 +15,8 @@ trainer:
   _target_: lightning.Trainer
   accelerator: auto
   strategy: auto
+  # gpus: 4
+  # strategy: ddp
   devices: auto
   num_nodes: 1
   precision: 32
@@ -55,12 +57,13 @@ trainer:
   gradient_clip_algorithm: norm
 train_dataloader:
   _target_: uni2ts.data.loader.DataLoader
-  batch_size: 128
+  batch_size: 5
   batch_size_factor: 2.0
   cycle: true
   num_batches_per_epoch: 100
   shuffle: true
-  num_workers: 11
+  # num_workers: 11
+  num_workers: 0
   collate_fn:
     _target_: uni2ts.data.loader.PackCollate
     max_length: ${model.module_kwargs.max_seq_len}

@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader as TorchDataLoader
 from torch.utils.data import Dataset, Sampler, default_collate, default_convert
 
 from uni2ts.common.typing import BatchedSample, Sample
-
+import sys
 
 @dataclass
 class Collate:
@@ -50,6 +50,13 @@ class Collate:
 
     def __call__(self, batch: list[Sample]) -> BatchedSample:
         raise NotImplementedError
+
+def convert_to_array(data):
+    if isinstance(data, dict):
+        return data['target']
+    else:
+        return np.array(data) if not isinstance(data, np.ndarray) else data
+    
 
 
 class PadCollate(Collate):
@@ -254,6 +261,9 @@ class BatchedSampleQueue:
         Ensure that all samples in the batch follows the required schema.
         If a schema has not been specified, then all samples in the batch should have the same schema.
         """
+        '''
+        保证所有batch的结构一致
+        '''
         if self.schema is None:
             self.schema = {
                 key: Metadata(
@@ -347,6 +357,11 @@ class _BatchedSampleIterator:
         :return: either None or the next batch of samples
         :raises StopIteration: if the queue is empty
         """
+        '''
+        - 检查 self.queue 中是否已经有足够的数据。如果没有足够数据，会尝试从 dataloader_iter 中获取数据并追加到 queue 中
+        - 如果 dataloader_iter 中没有更多数据，进入末尾处理逻辑
+        - 如果 queue 中有足够的数据，则从 queue 中移除一部分数据组成一个完整批次并返回
+        '''
         if len(self.queue) < self.batch_size:
             # check if there are sufficient samples in the queue
             # if not, extract the next batch from dataloader_iter and return None
@@ -363,9 +378,17 @@ class _BatchedSampleIterator:
                     self._pad_queue(self.batch_size - len(self.queue))
 
         batch = self.queue.popleft(min(self.batch_size, len(self.queue)))
+        # for key in batch:
+        #     key_shape = batch[key].shape
+        #     print(f'{key}, {key_shape}')
+        #     print(batch[key][0])
+        # sys.exit(0)
         return batch
 
     def _pad_queue(self, size: int):
+        '''
+        当 fill_last 为 True 且 queue 中的数据不足以填满批次时，调用 _pad_queue 为剩余的样本填充数据
+        '''
         if self.queue.schema is None:
             raise ValueError("schema must be set before padding")
         padding = {

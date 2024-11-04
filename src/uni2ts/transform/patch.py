@@ -70,7 +70,10 @@ class DefaultPatchSizeConstraints(PatchSizeConstraints):
     }
 
     def _get_boundaries(self, n: int, offset_name: str) -> tuple[int, int]:
+        # if offset_name in self.DEFAULT_RANGES:
         start, stop = self.DEFAULT_RANGES[offset_name]
+        # else:
+        #     start, stop = self.DEFAULT_RANGES['D']
         return start, stop
 
 

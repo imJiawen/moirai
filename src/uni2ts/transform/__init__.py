@@ -34,6 +34,8 @@ from .reshape import (
     PackFields,
     SequencifyField,
     Transpose,
+    DumpCollection,
+    DumpFields
 )
 from .task import EvalMaskedPrediction, ExtendMask, MaskedPrediction
 
@@ -71,4 +73,6 @@ __all__ = [
     "SetValue",
     "Transformation",
     "Transpose",
+    "DumpCollection",
+    "DumpFields"
 ]
