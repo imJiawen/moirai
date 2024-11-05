@@ -36,8 +36,8 @@ class LOTSADatasetBuilder(DatasetBuilder, abc.ABC):
     LOTSA datasets are backed by Hugging Face datasets, and use the HuggingFaceDatasetIndexer for fast indexing.
 
     :attribute dataset_list: list of dataset names belonging to the DatasetBuilder class
-    :attribute dataset_type_map: map dataset names to TimeSeriesDataset
-    :attribute dataset_load_func_map: map dataset names to transform_map
+    :attribute dataset_type_map: map dataset names to TimeSeriesDataset 指定不同的数据集类型
+    :attribute dataset_load_func_map: map dataset names to transform_map  将数据集名称映射到加载函数，可以在加载数据集时应用自定义处理
     :attribute uniform: whether all datasets in the dataset_list have uniform series length
     """
 

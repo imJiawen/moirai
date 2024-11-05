@@ -111,6 +111,7 @@ class PackCollate(Collate):
     """Packs uneven sequences with the first fit decreasing bin packing strategy."""
 
     def __call__(self, batch: list[Sample]) -> BatchedSample:
+        # 确保同一个样本中的不同字段长度一致
         assert all(
             [
                 len(sample[self.target_field]) == len(sample[key])
@@ -118,12 +119,17 @@ class PackCollate(Collate):
                 for key in self.seq_fields
             ]
         ), "All fields must have the same length."
+        
+        # 确保每个样本的目标字段长度小于等于 max_length
         assert all(
             [len(sample[self.target_field]) <= self.max_length for sample in batch]
         ), f"Sample length must be less than or equal to max_length ({self.max_length})"
 
         packed_batch, bin_spaces = self.first_fit_decreasing_bin_packing(batch)
+        
+        # 为每个样本生成一个整数 ID,并返回一个包含样本 ID 的张量， ID从1开始，填充部分用 0 表示
         sample_id = self.get_sample_id(packed_batch, bin_spaces)
+        # 将打包的样本列表 batch 合并成一个统一的 BatchedSample 格式
         merged_batch = self.merge_batch(packed_batch, bin_spaces) | dict(
             sample_id=sample_id
         )
@@ -142,8 +148,8 @@ class PackCollate(Collate):
 
         :param batch: list of samples
         :return:
-            - packed_batch - batch which has been packed
-            - bin_spaces - length of each bin
+            - packed_batch - batch which has been packed 是一个二维列表，其中每个子列表表示一个 bin,开始时初始化为一个空 bin
+            - bin_spaces - length of each bin 是一个数组，每个元素表示当前 bin 剩余的可用空间
         """
         batch = sorted(
             batch, key=lambda sample: len(sample[self.target_field]), reverse=True

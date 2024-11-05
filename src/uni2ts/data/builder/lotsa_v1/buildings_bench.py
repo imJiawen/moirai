@@ -57,6 +57,8 @@ class BuildingsBenchDatasetBuilder(LOTSADatasetBuilder):
         "smart",
         "lcl",
     ]
+    
+    # 默认情况下，返回 TimeSeriesDataset；对于 MULTI_SAMPLE_DATASETS 中的指定数据集，返回 MultiSampleTimeSeriesDataset
     dataset_type_map = defaultdict(lambda: TimeSeriesDataset) | {
         dataset: MultiSampleTimeSeriesDataset for dataset in MULTI_SAMPLE_DATASETS
     }
