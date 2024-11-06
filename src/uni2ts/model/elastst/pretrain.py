@@ -178,7 +178,7 @@ class ElasTSTPretrain(L.LightningModule):
         #     },
         # )
         target = unpacked_sequences['target']
-        loss_weights, _ = unpacked_sequences["prediction_mask"].min(dim=-1, keepdim=True)
+        loss_weights = unpacked_sequences["prediction_mask"]
         loss = self.loss_func(target, pred)
         loss = weighted_average(loss, weights=loss_weights)
         
@@ -303,13 +303,14 @@ class ElasTSTPretrain(L.LightningModule):
             MultiOutSizeLinear,
             nn.Linear,
             ElasTST_backbone,
+            # nn.ModuleList,
         )
         blacklist_params = (
             BinaryAttentionBias,
             LearnedEmbedding,
             RMSNorm,
             nn.Embedding,
-            nn.LayerNorm,
+            # nn.LayerNorm,
         )
 
         for mn, m in self.named_modules():
@@ -321,6 +322,8 @@ class ElasTSTPretrain(L.LightningModule):
                 if pn.endswith("bias"):
                     no_decay.add(fpn)
                 elif pn.endswith("weight") and isinstance(m, whitelist_params):
+                    decay.add(fpn)
+                elif pn.endswith("freqs") and isinstance(m, whitelist_params):
                     decay.add(fpn)
                 elif pn.endswith("weight") and isinstance(m, blacklist_params):
                     no_decay.add(fpn)

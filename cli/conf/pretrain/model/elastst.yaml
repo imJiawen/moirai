@@ -18,7 +18,7 @@ module_kwargs:
 min_patches: 2
 min_mask_ratio: 0.15
 max_mask_ratio: 0.5
-max_dim: 64
+max_dim: 128
 # loss_func:
 #   _target_: uni2ts.loss.packed.PackedNLLLoss
 lr: 1e-3

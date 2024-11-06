@@ -197,7 +197,7 @@ class ElasTSTModule(
         observed_mask = F.pad(unpacked_sequences['observed_mask'], (0, 0, False, pad_length))
         
         pred, pred_list = self.model(x, past_value_indicator, observed_mask)
-        pred = x[:, :L]
+        pred = pred[:, :L]
         
         # if self.use_norm:
         #     pred = self.instance_norm(pred, 'denorm')
