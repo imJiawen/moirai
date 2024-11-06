@@ -50,13 +50,9 @@ class InstanceNorm(nn.Module):
     def _normalize(self, x, mask):
         x = x - self.mean
         x = x / self.stdev
-        if mask is not None:
-            x = x * mask  
         return x
 
     def _denormalize(self, x, mask):
         x = x * self.stdev
         x = x + self.mean
-        if mask is not None:
-            x = x * mask
         return x

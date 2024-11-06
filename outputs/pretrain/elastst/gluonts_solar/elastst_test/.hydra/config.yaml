@@ -29,7 +29,7 @@ model:
 data:
   _target_: uni2ts.data.builder.lotsa_v1.GluonTSDatasetBuilder
   datasets:
-  - solar_power
+  - taxi_30min
 run_name: elastst_test
 seed: 0
 tf32: true
@@ -77,7 +77,7 @@ trainer:
   gradient_clip_algorithm: norm
 train_dataloader:
   _target_: uni2ts.data.loader.DataLoader
-  batch_size: 5
+  batch_size: 10
   batch_size_factor: 2.0
   cycle: true
   num_batches_per_epoch: 100

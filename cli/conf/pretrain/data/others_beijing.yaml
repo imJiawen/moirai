@@ -1,0 +1,2 @@
+_target_: uni2ts.data.builder.lotsa_v1.OthersLOTSADatasetBuilder
+datasets: [beijing_air_quality]

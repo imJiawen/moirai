@@ -1,5 +1,5 @@
 _target_: uni2ts.data.builder.lotsa_v1.GluonTSDatasetBuilder
-datasets: [solar_power]
+datasets: [taxi_30min]
 # datasets: [solar_power, m4_monthly, m4_yearly]
 
 

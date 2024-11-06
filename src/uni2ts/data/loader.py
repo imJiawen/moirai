@@ -384,11 +384,7 @@ class _BatchedSampleIterator:
                     self._pad_queue(self.batch_size - len(self.queue))
 
         batch = self.queue.popleft(min(self.batch_size, len(self.queue)))
-        # for key in batch:
-        #     key_shape = batch[key].shape
-        #     print(f'{key}, {key_shape}')
-        #     print(batch[key][0])
-        # sys.exit(0)
+
         return batch
 
     def _pad_queue(self, size: int):

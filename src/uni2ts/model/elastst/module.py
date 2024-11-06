@@ -158,7 +158,7 @@ class ElasTSTModule(
         :return: predictive distribution
         """
         
-        unpadded_sequences = unpack_data(target,
+        unpacked_sequences = unpack_data(target,
         observed_mask,
         sample_id,
         time_id,
@@ -166,27 +166,20 @@ class ElasTSTModule(
         prediction_mask,
         patch_size)
 
-        for key in unpadded_sequences:
-            print(f'{key} ', unpadded_sequences[key].shape)
-            # print(f'{key} ', unpadded_sequences[key][0])
-        sys.exit(0)
-        
-        # print(unpadded_sequences['prediction_mask'][0])
+        B, L, K = unpacked_sequences['target'].shape
 
-        # B, L, K = unpadded_sequences['target'].shape
         
-        
-        
-        # for p in self.l_patch_size:
-        #     new_pred_len = self.check_divisibility(L, p)
+        for p in self.l_patch_size:
+            new_pred_len = self.check_divisibility(L, p)
         
         
         # past_target = unpadded_sequences[]
         # past_observed_values = batch_data.past_observed_values
         
-        # if self.use_norm:
-        #     past_target = self.instance_norm(past_target, 'norm', mask=~unpadded_sequences['prediction_mask'])
+        if self.use_norm:
+            x = self.instance_norm(unpacked_sequences['target'], 'norm', mask=~unpacked_sequences['prediction_mask'])
 
+        x[unpacked_sequences['prediction_mask']] = 0
         # # future_observed_values is the mask indicate whether there is a value in a position
         # future_observed_values = torch.zeros([B, new_pred_len, K]).to(batch_data.future_observed_values.device)
 
@@ -196,9 +189,16 @@ class ElasTSTModule(
         # # target placeholder
         # future_placeholder = torch.zeros([B, new_pred_len, K]).to(batch_data.past_target_cdf.device)
 
-        # x, pred_list = self.model(past_target, future_placeholder, past_observed_values, future_observed_values, dataset_name=dataset_name)
+        x, pred_list = self.model(x, ~unpacked_sequences['prediction_mask'], unpacked_sequences['observed_mask'])
         # dec_out = x[:, :pred_len]
-        # if self.use_norm:
-        #     dec_out = self.instance_norm(dec_out, 'denorm')
+        
+        if self.use_norm:
+            dec_out = self.instance_norm(dec_out, 'denorm')
             
-        # return dec_out
+        return dec_out
+    
+    def check_divisibility(self, pred_len, patch_size):
+        if pred_len % patch_size == 0:
+            return pred_len
+        else:  
+            return (pred_len // patch_size + 1) * patch_size  

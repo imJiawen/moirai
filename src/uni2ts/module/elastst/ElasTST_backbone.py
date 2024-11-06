@@ -95,15 +95,15 @@ class ElasTST_backbone(nn.Module):
         return num_k_patches, num_l_patches
 
 
-    def forward(self, past_target, future_placeholder, past_observed_values, future_observed_values, dataset_name=None):                                                                   # z: [bs x nvars x seq_len]
-
-        pred_shape = future_placeholder.shape
+    def forward(self, x, past_value_indicator, observed_value_indicator):                                                                   # z: [bs x nvars x seq_len]
+        B, L, K = x.shape
+        # pred_shape = future_placeholder.shape
         future_observed_indicator = torch.zeros(future_observed_values.shape).to(future_observed_values.device)
         
-        x = torch.cat((past_target, future_placeholder), dim=1) # B L+T K
+        # x = torch.cat((past_target, future_placeholder), dim=1) # B L+T K
         
-        past_value_indicator = torch.cat((past_observed_values, future_observed_indicator), dim=1) # B L+T K
-        observed_value_indicator = torch.cat((past_observed_values, future_observed_values), dim=1) # B L+T K
+        # past_value_indicator = torch.cat((past_observed_values, future_observed_indicator), dim=1) # B L+T K
+        # observed_value_indicator = torch.cat((past_observed_values, future_observed_values), dim=1) # B L+T K
         
         pred_list = []
 
@@ -119,7 +119,7 @@ class ElasTST_backbone(nn.Module):
             if self.learn_tem_emb:
                 grid_len = np.arange(num_l_patches, dtype=np.float32)
                 grid_len = torch.tensor(grid_len, requires_grad=False).float().unsqueeze(0).to(x.device)
-                pos_embed = repeat(grid_len, '1 l -> b l', b=pred_shape[0])
+                pos_embed = repeat(grid_len, '1 l -> b l', b=B)
                 pos_embed = self.learn_time_embedding(pos_embed) # b l 1 d
                 pos_embed = rearrange(pos_embed, 'b l 1 d -> b 1 l d')
                 x_p = x_p + pos_embed
@@ -141,7 +141,7 @@ class ElasTST_backbone(nn.Module):
 
             x_p = rearrange(x_p, 'b k t p -> b (t p) k')
 
-            x_p = x_p[:,-pred_shape[1]:,:]
+            # x_p = x_p[:,-pred_shape[1]:,:]
             
             pred_list.append(x_p.unsqueeze(-1))
         

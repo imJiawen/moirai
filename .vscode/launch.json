@@ -12,10 +12,23 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Bash-Debug",
-            "type": "bashdb",
+            "name": "Debug elastst_test",
+            "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "module": "cli.train",
+            "args": [
+              "-cp", "conf/pretrain",
+              "run_name=elastst_test",
+              "model=elastst",
+            //   "data=gluonts_solar"
+              "data=others_beijing"
+            ],
+            "justMyCode": false, // 设为 false 以调试第三方代码
+            "env": {
+                "PATH": "${env:PATH}:/data/miniconda/envs/probts/bin",  // 替换为你的Anaconda环境路径
+                "PYTHONPATH": "/data/Blob_WestJP/v-jiawezhang/TSFM/sandbox478/moirai/src:${env:PYTHONPATH}",
+                "CUDA_VISIBLE_DEVICES": "0"
+            }
         }
     ]
 }

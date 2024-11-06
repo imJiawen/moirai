@@ -461,12 +461,12 @@ class ElasTSTPretrain(L.LightningModule):
                     prediction_mask_field="prediction_mask",
                     expected_ndim=3,
                 )
-                + ExtendMask(
-                    fields=tuple(),
-                    optional_fields=("past_feat_dynamic_real",),
-                    mask_field="prediction_mask",
-                    expected_ndim=3,
-                )
+                # + ExtendMask(
+                #     fields=tuple(),
+                #     optional_fields=("past_feat_dynamic_real",),
+                #     mask_field="prediction_mask",
+                #     expected_ndim=3,
+                # )
                 + FlatPackCollection(
                     field="variate_id",
                     feat=False,

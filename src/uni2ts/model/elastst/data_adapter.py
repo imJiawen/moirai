@@ -2,6 +2,7 @@ import torch
 from einops import rearrange
 import sys 
 import torch.nn.functional as F
+from collections import Counter
 
 def unpack_data(
         target,
@@ -52,46 +53,41 @@ def unpack_data(
     
     max_len = 0
     B = len(sample_id)
+    var_num_cal = []
     for b in range(B):
+        
         # unpack
-        
-        
-        # sys.exit(0)
         unique_sample_ids = torch.unique(sample_id[b])
-        
         for target_sample_id in unique_sample_ids:
             if target_sample_id == 0:
                 continue
-
+            
             mask = (sample_id[b] == target_sample_id)
             
-            for key in unpadded_sequences:
+            # unflatten
+            unique_var_ids = torch.unique(variate_id[b][mask])
+            for target_var_id in unique_var_ids:
+                if target_var_id == 0:
+                    continue
                 
-                selected_sample = packed_data[key][b][mask]
-                
-                patch_size = packed_data['patch_size'][b][mask][0]
-                
-                # print(f'patch size: ', patch_size)
-                
-                # unpatch
-                if key in ['target', 'observed_mask']:
-                    selected_sample = selected_sample[:,:patch_size]
-                    selected_sample = rearrange(selected_sample, 'n p -> (n p)')
-                    max_len = max(max_len, len(selected_sample))
-                elif key in ['variate_id', 'prediction_mask']:
-                    print('patch_size ', patch_size)
-                    print(f'{key}.shape: ', selected_sample.shape)
-                    print(f'{key}: ', selected_sample)
-                
-                    selected_sample = torch.repeat_interleave(selected_sample, patch_size)
-                # else: # time_id
-                #     selected_sample = torch.arange(0, len(selected_sample) * patch_size)
+                var_mask = (variate_id[b][mask] == target_var_id)
+                patch_size = packed_data['patch_size'][b][mask][var_mask][0]
+                for key in unpadded_sequences:
+                    selected_sample = packed_data[key][b][mask][var_mask]
 
-                unpadded_sequences[key].append(selected_sample)
-        print('max_len: ', max_len)
-                
-    sys.exit(0)
-                
+                    if key in ['target', 'observed_mask']:
+                        # unpatch
+                        selected_sample = selected_sample[:,:patch_size]
+                        selected_sample = rearrange(selected_sample, 'n p -> (n p)')
+                        max_len = max(max_len, len(selected_sample))
+                    elif key in ['variate_id', 'prediction_mask']:
+                        # unpatch
+                        selected_sample = torch.repeat_interleave(selected_sample, patch_size)
+
+                    unpadded_sequences[key].append(selected_sample)
+                    
+        # sys.exit(0)        
+
     padded_sequences = {
         'target': [],
         'observed_mask': [],
@@ -107,7 +103,7 @@ def unpack_data(
         # Stack the padded sequences into a single tensor
 
         padded_sequences[key] = torch.stack(padded_sequences[key])
-        padded_sequences[key] = rearrange(padded_sequences[key], '(b k) l -> b l k')
+        padded_sequences[key] = rearrange(padded_sequences[key], 'b l -> b l 1')
     
 
     return padded_sequences
