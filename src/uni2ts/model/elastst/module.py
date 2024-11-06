@@ -168,18 +168,21 @@ class ElasTSTModule(
 
         B, L, K = unpacked_sequences['target'].shape
 
-        
+        new_pred_len = L
         for p in self.l_patch_size:
-            new_pred_len = self.check_divisibility(L, p)
+            new_pred_len = self.check_divisibility(new_pred_len, p)
         
+        pad_length = new_pred_len - L
         
         # past_target = unpadded_sequences[]
         # past_observed_values = batch_data.past_observed_values
         
         if self.use_norm:
             x = self.instance_norm(unpacked_sequences['target'], 'norm', mask=~unpacked_sequences['prediction_mask'])
+            unpacked_sequences['target'] = self.instance_norm(unpacked_sequences['target'], 'norm', mask=~unpacked_sequences['prediction_mask'])
 
-        x[unpacked_sequences['prediction_mask']] = 0
+        past_value_indicator = ~unpacked_sequences['prediction_mask'] * unpacked_sequences['observed_mask']
+        x[~past_value_indicator] = 0
         # # future_observed_values is the mask indicate whether there is a value in a position
         # future_observed_values = torch.zeros([B, new_pred_len, K]).to(batch_data.future_observed_values.device)
 
@@ -188,14 +191,18 @@ class ElasTSTModule(
 
         # # target placeholder
         # future_placeholder = torch.zeros([B, new_pred_len, K]).to(batch_data.past_target_cdf.device)
-
-        x, pred_list = self.model(x, ~unpacked_sequences['prediction_mask'], unpacked_sequences['observed_mask'])
-        # dec_out = x[:, :pred_len]
         
-        if self.use_norm:
-            dec_out = self.instance_norm(dec_out, 'denorm')
+        x = F.pad(x, (0, 0, 0, pad_length))
+        past_value_indicator = F.pad(past_value_indicator, (0, 0, False, pad_length))
+        observed_mask = F.pad(unpacked_sequences['observed_mask'], (0, 0, False, pad_length))
+        
+        pred, pred_list = self.model(x, past_value_indicator, observed_mask)
+        pred = x[:, :L]
+        
+        # if self.use_norm:
+        #     pred = self.instance_norm(pred, 'denorm')
             
-        return dec_out
+        return unpacked_sequences, pred
     
     def check_divisibility(self, pred_len, patch_size):
         if pred_len % patch_size == 0:

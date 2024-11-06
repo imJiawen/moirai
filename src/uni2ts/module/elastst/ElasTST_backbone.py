@@ -98,7 +98,7 @@ class ElasTST_backbone(nn.Module):
     def forward(self, x, past_value_indicator, observed_value_indicator):                                                                   # z: [bs x nvars x seq_len]
         B, L, K = x.shape
         # pred_shape = future_placeholder.shape
-        future_observed_indicator = torch.zeros(future_observed_values.shape).to(future_observed_values.device)
+        # future_observed_indicator = torch.zeros(future_observed_values.shape).to(future_observed_values.device)
         
         # x = torch.cat((past_target, future_placeholder), dim=1) # B L+T K
         
@@ -265,8 +265,8 @@ class TimePatchEmbed(nn.Module):
         x = self.proj(x)  # B C L K -> B C L' K
 
         with torch.no_grad():
-            future_mask = self.mask_proj(future_mask)
-            obv_mask = self.mask_proj(obv_mask)
+            future_mask = self.mask_proj(future_mask.float())
+            obv_mask = self.mask_proj(obv_mask.float())
 
         if self.flatten:
             x = x.flatten(2).transpose(1, 2)  # NCHW -> NLC

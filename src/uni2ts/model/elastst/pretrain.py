@@ -64,7 +64,8 @@ from uni2ts.transform import (
 from gluonts.transform.convert import AsNumpyArray
 
 from .module import ElasTSTModule
-
+from uni2ts.module.elastst.utils import weighted_average
+from uni2ts.module.elastst.ElasTST_backbone import ElasTST_backbone
 
 class ElasTSTPretrain(L.LightningModule):
     seq_fields: tuple[str, ...] = (
@@ -98,7 +99,7 @@ class ElasTSTPretrain(L.LightningModule):
         num_samples: int = 100,
         beta1: float = 0.9,
         beta2: float = 0.98,
-        loss_func: PackedDistributionLoss = PackedNLLLoss(),
+        # loss_func: PackedDistributionLoss = PackedNLLLoss(),
         val_metric: Optional[PackedLoss | list[PackedLoss]] = None,
         lr: float = 1e-3,
         weight_decay: float = 1e-2,
@@ -115,6 +116,7 @@ class ElasTSTPretrain(L.LightningModule):
         self.save_hyperparameters(ignore=["module"])
         self.module = ElasTSTModule(**module_kwargs) if module is None else module
         self.max_seq_len = max_seq_len
+        self.loss_func = nn.MSELoss(reduction='none')
 
     def forward(
         self,
@@ -138,7 +140,7 @@ class ElasTSTPretrain(L.LightningModule):
         :param patch_size: patch size for each token
         :return: predictive distribution
         """
-        distr = self.module(
+        unpacked_sequences, pred = self.module(
             target=target,
             observed_mask=observed_mask,
             sample_id=sample_id,
@@ -147,7 +149,7 @@ class ElasTSTPretrain(L.LightningModule):
             prediction_mask=prediction_mask,
             patch_size=patch_size,
         )
-        return distr
+        return unpacked_sequences, pred
 
     def training_step(
         self, batch: dict[str, torch.Tensor], batch_idx: int
@@ -159,27 +161,32 @@ class ElasTSTPretrain(L.LightningModule):
         :param batch_idx: index of current batch
         :return: training loss for current batch
         """
-        distr = self(
+        unpacked_sequences, pred = self(
             **{field: batch[field] for field in list(self.seq_fields) + ["sample_id"]}
         )
-        loss = self.hparams.loss_func(
-            pred=distr,
-            **{
-                field: batch[field]
-                for field in [
-                    "target",
-                    "prediction_mask",
-                    "observed_mask",
-                    "sample_id",
-                    "variate_id",
-                ]
-            },
-        )
+        # loss = self.loss_func(
+        #     pred=distr,
+        #     **{
+        #         field: batch[field]
+        #         for field in [
+        #             "target",
+        #             "prediction_mask",
+        #             "observed_mask",
+        #             "sample_id",
+        #             "variate_id",
+        #         ]
+        #     },
+        # )
+        target = unpacked_sequences['target']
+        loss_weights, _ = unpacked_sequences["prediction_mask"].min(dim=-1, keepdim=True)
+        loss = self.loss_func(target, pred)
+        loss = weighted_average(loss, weights=loss_weights)
+        
         batch_size = (
             batch["sample_id"].max(dim=1).values.sum() if "sample_id" in batch else None
         )
         self.log(
-            f"train/{self.hparams.loss_func.__class__.__name__}",
+            f"train/{self.loss_func.__class__.__name__}",
             loss,
             on_step=self.hparams.log_on_step,
             on_epoch=True,
@@ -202,27 +209,31 @@ class ElasTSTPretrain(L.LightningModule):
         :param dataloader_idx:
         :return: validation loss for current batch
         """
-        distr = self(
+        unpacked_sequences, pred = self(
             **{field: batch[field] for field in list(self.seq_fields) + ["sample_id"]}
         )
-        val_loss = self.hparams.loss_func(
-            pred=distr,
-            **{
-                field: batch[field]
-                for field in [
-                    "target",
-                    "prediction_mask",
-                    "observed_mask",
-                    "sample_id",
-                    "variate_id",
-                ]
-            },
-        )
+        # val_loss = self.loss_func(
+        #     pred=distr,
+        #     **{
+        #         field: batch[field]
+        #         for field in [
+        #             "target",
+        #             "prediction_mask",
+        #             "observed_mask",
+        #             "sample_id",
+        #             "variate_id",
+        #         ]
+        #     },
+        # )
+        target = unpacked_sequences['target']
+        loss_weights, _ = unpacked_sequences["prediction_mask"].min(dim=-1, keepdim=True)
+        val_loss = self.loss_func(target, pred)
+        val_loss = weighted_average(val_loss, weights=loss_weights)
         batch_size = (
             batch["sample_id"].max(dim=1).values.sum() if "sample_id" in batch else None
         )
         self.log(
-            f"val/{self.hparams.loss_func.__class__.__name__}",
+            f"val/{self.loss_func.__class__.__name__}",
             val_loss,
             on_step=self.hparams.log_on_step,
             on_epoch=True,
@@ -233,49 +244,49 @@ class ElasTSTPretrain(L.LightningModule):
             rank_zero_only=True,
         )
 
-        if self.hparams.val_metric is not None:
-            val_metrics = (
-                self.hparams.val_metric
-                if isinstance(self.hparams.val_metric, list)
-                else [self.hparams.val_metric]
-            )
-            for metric_func in val_metrics:
-                if isinstance(metric_func, PackedPointLoss):
-                    pred = distr.sample(torch.Size((self.hparams.num_samples,)))
-                    pred = torch.median(pred, dim=0).values
-                elif isinstance(metric_func, PackedDistributionLoss):
-                    pred = distr
-                else:
-                    raise ValueError(f"Unsupported loss function: {metric_func}")
+        # if self.hparams.val_metric is not None:
+        #     val_metrics = (
+        #         self.hparams.val_metric
+        #         if isinstance(self.hparams.val_metric, list)
+        #         else [self.hparams.val_metric]
+        #     )
+        #     for metric_func in val_metrics:
+        #         if isinstance(metric_func, PackedPointLoss):
+        #             pred = distr.sample(torch.Size((self.hparams.num_samples,)))
+        #             pred = torch.median(pred, dim=0).values
+        #         elif isinstance(metric_func, PackedDistributionLoss):
+        #             pred = distr
+        #         else:
+        #             raise ValueError(f"Unsupported loss function: {metric_func}")
 
-                metric = metric_func(
-                    pred=pred,
-                    **{
-                        field: batch[field]
-                        for field in [
-                            "target",
-                            "prediction_mask",
-                            "observed_mask",
-                            "sample_id",
-                            "variate_id",
-                        ]
-                    },
-                )
+        #         metric = metric_func(
+        #             pred=pred,
+        #             **{
+        #                 field: batch[field]
+        #                 for field in [
+        #                     "target",
+        #                     "prediction_mask",
+        #                     "observed_mask",
+        #                     "sample_id",
+        #                     "variate_id",
+        #                 ]
+        #             },
+        #         )
 
-                self.log(
-                    f"val/{metric_func.__class__.__name__}",
-                    metric,
-                    on_step=self.hparams.log_on_step,
-                    on_epoch=True,
-                    prog_bar=True,
-                    logger=True,
-                    sync_dist=True,
-                    batch_size=batch_size,
-                    rank_zero_only=True,
-                )
+        #         self.log(
+        #             f"val/{metric_func.__class__.__name__}",
+        #             metric,
+        #             on_step=self.hparams.log_on_step,
+        #             on_epoch=True,
+        #             prog_bar=True,
+        #             logger=True,
+        #             sync_dist=True,
+        #             batch_size=batch_size,
+        #             rank_zero_only=True,
+        #         )
 
         return val_loss
-
+    
     def configure_optimizers(self) -> dict:
         """
         Implements LightningModule configure_optimizers which defines the configuration of optimizer and learning rate
@@ -283,71 +294,71 @@ class ElasTSTPretrain(L.LightningModule):
 
         :return: dictionary of optimizers and learning rate schedulers
         """
-        # decay = set()
-        # no_decay = set()
+        decay = set()
+        no_decay = set()
 
-        # whitelist_params = (
-        #     LearnedProjection,
-        #     MultiInSizeLinear,
-        #     MultiOutSizeLinear,
-        #     nn.Linear,
-        # )
-        # blacklist_params = (
-        #     BinaryAttentionBias,
-        #     LearnedEmbedding,
-        #     RMSNorm,
-        #     nn.Embedding,
-        #     nn.LayerNorm,
-        # )
+        whitelist_params = (
+            LearnedProjection,
+            MultiInSizeLinear,
+            MultiOutSizeLinear,
+            nn.Linear,
+            ElasTST_backbone,
+        )
+        blacklist_params = (
+            BinaryAttentionBias,
+            LearnedEmbedding,
+            RMSNorm,
+            nn.Embedding,
+            nn.LayerNorm,
+        )
 
-        # for mn, m in self.named_modules():
-        #     for pn, p in m.named_parameters():
-        #         if not p.requires_grad:
-        #             continue
+        for mn, m in self.named_modules():
+            for pn, p in m.named_parameters():
+                if not p.requires_grad:
+                    continue
 
-        #         fpn = f"{mn}.{pn}" if mn else pn
-        #         if pn.endswith("bias"):
-        #             no_decay.add(fpn)
-        #         elif pn.endswith("weight") and isinstance(m, whitelist_params):
-        #             decay.add(fpn)
-        #         elif pn.endswith("weight") and isinstance(m, blacklist_params):
-        #             no_decay.add(fpn)
+                fpn = f"{mn}.{pn}" if mn else pn
+                if pn.endswith("bias"):
+                    no_decay.add(fpn)
+                elif pn.endswith("weight") and isinstance(m, whitelist_params):
+                    decay.add(fpn)
+                elif pn.endswith("weight") and isinstance(m, blacklist_params):
+                    no_decay.add(fpn)
 
-        # # validate that we considered every parameter
-        # param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
-        # inter_params = decay & no_decay
-        # union_params = decay | no_decay
-        # assert (
-        #     len(inter_params) == 0
-        # ), f"parameters {str(inter_params)} made it into both decay/no_decay sets!"
-        # assert (
-        #     len(param_dict.keys() - union_params) == 0
-        # ), f"parameters {str(param_dict.keys() - union_params)} were not separated into either decay/no_decay set!"
+        # validate that we considered every parameter
+        param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+        inter_params = decay & no_decay
+        union_params = decay | no_decay
+        assert (
+            len(inter_params) == 0
+        ), f"parameters {str(inter_params)} made it into both decay/no_decay sets!"
+        assert (
+            len(param_dict.keys() - union_params) == 0
+        ), f"parameters {str(param_dict.keys() - union_params)} were not separated into either decay/no_decay set!"
 
-        # optim_groups = [
-        #     {
-        #         "params": filter(
-        #             lambda p: p.requires_grad,
-        #             [param_dict[pn] for pn in sorted(list(decay))],
-        #         ),
-        #         "weight_decay": self.hparams.weight_decay,
-        #     },
-        #     {
-        #         "params": filter(
-        #             lambda p: p.requires_grad,
-        #             [param_dict[pn] for pn in sorted(list(no_decay))],
-        #         ),
-        #         "weight_decay": 0.0,
-        #     },
-        # ]
-        
+        optim_groups = [
+            {
+                "params": filter(
+                    lambda p: p.requires_grad,
+                    [param_dict[pn] for pn in sorted(list(decay))],
+                ),
+                "weight_decay": self.hparams.weight_decay,
+            },
+            {
+                "params": filter(
+                    lambda p: p.requires_grad,
+                    [param_dict[pn] for pn in sorted(list(no_decay))],
+                ),
+                "weight_decay": 0.0,
+            },
+        ]
+
         optimizer = torch.optim.AdamW(
-            self.parameters(),
+            optim_groups,
             lr=self.hparams.lr,
             betas=(self.hparams.beta1, self.hparams.beta2),
             eps=1e-6,
         )
-    
         scheduler = get_scheduler(
             SchedulerType.COSINE_WITH_RESTARTS,
             optimizer,
@@ -362,6 +373,93 @@ class ElasTSTPretrain(L.LightningModule):
                 "interval": "step",
             },
         }
+
+    # def configure_optimizers(self) -> dict:
+    #     """
+    #     Implements LightningModule configure_optimizers which defines the configuration of optimizer and learning rate
+    #     scheduler.
+
+    #     :return: dictionary of optimizers and learning rate schedulers
+    #     """
+    #     # decay = set()
+    #     # no_decay = set()
+
+    #     # whitelist_params = (
+    #     #     LearnedProjection,
+    #     #     MultiInSizeLinear,
+    #     #     MultiOutSizeLinear,
+    #     #     nn.Linear,
+    #     # )
+    #     # blacklist_params = (
+    #     #     BinaryAttentionBias,
+    #     #     LearnedEmbedding,
+    #     #     RMSNorm,
+    #     #     nn.Embedding,
+    #     #     nn.LayerNorm,
+    #     # )
+
+    #     # for mn, m in self.named_modules():
+    #     #     for pn, p in m.named_parameters():
+    #     #         if not p.requires_grad:
+    #     #             continue
+
+    #     #         fpn = f"{mn}.{pn}" if mn else pn
+    #     #         if pn.endswith("bias"):
+    #     #             no_decay.add(fpn)
+    #     #         elif pn.endswith("weight") and isinstance(m, whitelist_params):
+    #     #             decay.add(fpn)
+    #     #         elif pn.endswith("weight") and isinstance(m, blacklist_params):
+    #     #             no_decay.add(fpn)
+
+    #     # # validate that we considered every parameter
+    #     # param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+    #     # inter_params = decay & no_decay
+    #     # union_params = decay | no_decay
+    #     # assert (
+    #     #     len(inter_params) == 0
+    #     # ), f"parameters {str(inter_params)} made it into both decay/no_decay sets!"
+    #     # assert (
+    #     #     len(param_dict.keys() - union_params) == 0
+    #     # ), f"parameters {str(param_dict.keys() - union_params)} were not separated into either decay/no_decay set!"
+
+    #     # optim_groups = [
+    #     #     {
+    #     #         "params": filter(
+    #     #             lambda p: p.requires_grad,
+    #     #             [param_dict[pn] for pn in sorted(list(decay))],
+    #     #         ),
+    #     #         "weight_decay": self.hparams.weight_decay,
+    #     #     },
+    #     #     {
+    #     #         "params": filter(
+    #     #             lambda p: p.requires_grad,
+    #     #             [param_dict[pn] for pn in sorted(list(no_decay))],
+    #     #         ),
+    #     #         "weight_decay": 0.0,
+    #     #     },
+    #     # ]
+        
+    #     optimizer = torch.optim.AdamW(
+    #         self.parameters(),
+    #         lr=self.hparams.lr,
+    #         betas=(self.hparams.beta1, self.hparams.beta2),
+    #         eps=1e-6,
+    #     )
+    
+    #     scheduler = get_scheduler(
+    #         SchedulerType.COSINE_WITH_RESTARTS,
+    #         optimizer,
+    #         num_warmup_steps=self.hparams.num_warmup_steps,
+    #         num_training_steps=self.hparams.num_training_steps,
+    #     )
+    #     return {
+    #         "optimizer": optimizer,
+    #         "lr_scheduler": {
+    #             "scheduler": scheduler,
+    #             "monitor": "train_loss",
+    #             "interval": "step",
+    #         },
+    #     }
 
     @property
     def train_transform_map(self) -> dict[str, Callable[..., Transformation]]:
