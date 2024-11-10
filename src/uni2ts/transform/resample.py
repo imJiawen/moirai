@@ -24,7 +24,7 @@ from uni2ts.common.typing import UnivarTimeSeries
 
 from ._base import Transformation
 from ._mixin import CheckArrNDimMixin, CollectFuncMixin, MapFuncMixin
-
+import sys
 
 @dataclass
 class SampleDimension(
@@ -62,7 +62,10 @@ class SampleDimension(
         arr: list[UnivarTimeSeries] = data_entry[field]
         rand_idx = np.random.permutation(len(arr))
         field_max_dim = (self.max_dim * len(arr)) // total_field_dim
+        # for dim = 1
+        field_max_dim = max(field_max_dim,1)
         n = self.sampler(min(len(arr), field_max_dim))
+
         return [arr[idx] for idx in rand_idx[:n]]
 
 

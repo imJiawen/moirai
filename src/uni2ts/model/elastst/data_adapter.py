@@ -48,14 +48,11 @@ def unpack_data(
             'prediction_mask': [],
         }
     
-    # Iterate through each unique sample ID to separate samples
-    
-    
+
     max_len = 0
     B = len(sample_id)
-    var_num_cal = []
+
     for b in range(B):
-        
         # unpack
         unique_sample_ids = torch.unique(sample_id[b])
         for target_sample_id in unique_sample_ids:
@@ -63,7 +60,7 @@ def unpack_data(
                 continue
             
             mask = (sample_id[b] == target_sample_id)
-            
+
             # unflatten
             unique_var_ids = torch.unique(variate_id[b][mask])
             for target_var_id in unique_var_ids:
@@ -71,22 +68,21 @@ def unpack_data(
                     continue
                 
                 var_mask = (variate_id[b][mask] == target_var_id)
+
                 patch_size = packed_data['patch_size'][b][mask][var_mask][0]
                 for key in unpadded_sequences:
                     selected_sample = packed_data[key][b][mask][var_mask]
 
+                    # unpatch
                     if key in ['target', 'observed_mask']:
-                        # unpatch
                         selected_sample = selected_sample[:,:patch_size]
                         selected_sample = rearrange(selected_sample, 'n p -> (n p)')
-                        max_len = max(max_len, len(selected_sample))
+                        max_len = max(max_len, selected_sample.size(0))
                     elif key in ['variate_id', 'prediction_mask']:
-                        # unpatch
                         selected_sample = torch.repeat_interleave(selected_sample, patch_size)
 
                     unpadded_sequences[key].append(selected_sample)
                     
-        # sys.exit(0)        
 
     padded_sequences = {
         'target': [],

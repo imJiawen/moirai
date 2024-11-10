@@ -40,7 +40,7 @@ class AddVariateIndex(CollectFuncMixin, CheckArrNDimMixin, Transformation):
     def __call__(self, data_entry: dict[str, Any]) -> dict[str, Any]:
         self.counter = 0
         self.dimensions = (
-            np.random.choice(self.max_dim, size=self.max_dim, replace=False)
+            np.random.choice(np.arange(1, self.max_dim + 1), size=self.max_dim, replace=False)
             if self.randomize
             else list(range(self.max_dim))
         )

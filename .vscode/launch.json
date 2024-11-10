@@ -25,9 +25,9 @@
             ],
             "justMyCode": false, // 设为 false 以调试第三方代码
             "env": {
-                "PATH": "${env:PATH}:/data/miniconda/envs/probts/bin",  // 替换为你的Anaconda环境路径
+                // "PATH": "${env:PATH}:/home/v-zhangjiaw/miniconda3/envs/probts/bin",  // 替换为你的Anaconda环境路径
                 "PYTHONPATH": "~/Blob_WestJP/v-jiawezhang/TSFM/sandbox478/moirai/src:${env:PYTHONPATH}",
-                "CUDA_VISIBLE_DEVICES": "0"
+                // "CUDA_VISIBLE_DEVICES": "0"
             }
         }
     ]

@@ -77,6 +77,52 @@ class DefaultPatchSizeConstraints(PatchSizeConstraints):
         return start, stop
 
 
+# @dataclass
+# class GetPatchSize(Transformation):
+#     min_time_patches: int
+#     target_field: str = "target"
+#     patch_sizes: tuple[int, ...] | list[int] | range = (8, 16, 32, 64, 128)
+#     patch_size_constraints: PatchSizeConstraints = DefaultPatchSizeConstraints()
+#     offset: bool = True
+
+#     def __call__(self, data_entry: dict[str, Any]) -> dict[str, Any]:
+#         freq = data_entry["freq"]
+#         constraints = self.patch_size_constraints(freq)
+#         # largest patch size based on min_time_patches
+#         target: list[UnivarTimeSeries] = data_entry[self.target_field]
+#         length = target[0].shape[0]
+#         patch_size_ceil = length // self.min_time_patches
+
+#         if isinstance(self.patch_sizes, (tuple, list)):
+#             patch_size_candidates = [
+#                 patch_size
+#                 for patch_size in self.patch_sizes
+#                 if (patch_size in constraints) and (patch_size <= patch_size_ceil)
+#             ]
+#         elif isinstance(self.patch_sizes, range):
+#             patch_size_candidates = range(
+#                 max(self.patch_sizes.start, constraints.start),
+#                 min(self.patch_sizes.stop, constraints.stop, patch_size_ceil),
+#             )
+#         else:
+#             raise NotImplementedError
+
+#         if len(patch_size_candidates) <= 0:
+#             ts_shape = (len(target),) + target[0].shape
+#             raise AssertionError(
+#                 "no valid patch size candidates for "
+#                 f"time series shape: {ts_shape}, "
+#                 f"freq: {freq}, "
+#                 f"patch_sizes: {self.patch_sizes}, "
+#                 f"constraints: {constraints}, "
+#                 f"min_time_patches: {self.min_time_patches}, "
+#                 f"patch_size_ceil: {patch_size_ceil}"
+#             )
+
+#         data_entry["patch_size"] = np.random.choice(patch_size_candidates)
+#         return data_entry
+
+
 @dataclass
 class GetPatchSize(Transformation):
     min_time_patches: int
@@ -92,6 +138,10 @@ class GetPatchSize(Transformation):
         target: list[UnivarTimeSeries] = data_entry[self.target_field]
         length = target[0].shape[0]
         patch_size_ceil = length // self.min_time_patches
+        
+        if len(self.patch_sizes) == 1:
+            data_entry["patch_size"] = np.random.choice(self.patch_sizes) 
+            return data_entry
 
         if isinstance(self.patch_sizes, (tuple, list)):
             patch_size_candidates = [
